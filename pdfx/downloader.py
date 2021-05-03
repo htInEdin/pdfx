@@ -13,7 +13,15 @@ else:
     from urllib.request import Request, urlopen, HTTPError, URLError
     unicode = str
 
-import ssl
+try:
+    # Not existing in Python 2.6
+    ssl_unverified_context = None
+    import ssl
+    # Used to allow downloading files even if https certificate doesn't match
+    if hasattr(ssl, "_create_unverified_context"):
+        ssl_unverified_context = ssl._create_unverified_context()
+except ImportError:
+    pass
 
 from collections import defaultdict
 from .threadpool import ThreadPool
@@ -21,12 +29,6 @@ from .colorprint import colorprint, OKGREEN, FAIL
 
 MAX_THREADS_DEFAULT = 7
 
-# Used to allow downloading files even if https certificate doesn't match
-if hasattr(ssl, "_create_unverified_context"):
-    ssl_unverified_context = ssl._create_unverified_context()
-else:
-    # Not existing in Python 2.6
-    ssl_unverified_context = None
 
 
 def sanitize_url(url):
