@@ -8,7 +8,7 @@ from __future__ import (absolute_import, division, print_function,
 
 import sys
 import logging
-from io import BytesIO
+from io import BytesIO, TextIOWrapper
 
 # Character Detection Helper
 import chardet
@@ -19,19 +19,26 @@ from .libs.xmp import xmp_to_dict
 
 # Setting `psparser.STRICT` is the first thing to do because it is
 # referenced in the other pdfparser modules
-from pdfminer import settings as pdfminer_settings
-pdfminer_settings.STRICT = False
+try:
+    from pdfminer import settings as pdfminer_settings
+    pdfminer_settings.STRICT = False
+except:
+    pass
 from pdfminer import psparser
 from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.pdfpage import PDFPage
-from pdfminer.pdftypes import resolve1, PDFObjRef
+from pdfminer.pdftypes import resolve1, resolve_all, PDFObjRef
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 
 
 logger = logging.getLogger(__name__)
+#logging.basicConfig(
+#        level=logging.DEBUG,
+#        format='%(levelname)s - %(module)s - %(message)s')
+
 
 
 IS_PY2 = sys.version_info < (3, 0)
@@ -81,7 +88,7 @@ class Reference(object):
         self.ref = uri
         self.reftype = "url"
         self.page = page
-
+        return
         # Detect reftype by filetype
         if uri.lower().endswith(".pdf"):
             self.reftype = "pdf"
@@ -116,6 +123,8 @@ class ReaderBackend(object):
     Base class of all Readers (eg. for PDF files, text, etc.)
 
     The job of a Reader is to extract Text and Links.
+
+    Hacked by HST on 2019-02-18 to separate scraped from annotated refs
     """
     text = ""
     metadata = {}
@@ -125,6 +134,8 @@ class ReaderBackend(object):
         self.text = ""
         self.metadata = {}
         self.references = set()
+        self.scraped = set()
+        self.refDict = None
 
     def get_metadata(self):
         return self.metadata
@@ -138,33 +149,32 @@ class ReaderBackend(object):
     def get_text(self):
         return self.text
 
-    def get_references(self, reftype=None, sort=False):
-        refs = self.references
-        if reftype:
-            refs = set([ref for ref in refs if ref.reftype == "pdf"])
-        return sorted(refs) if sort else refs
-
     def get_references_as_dict(self, reftype=None, sort=False):
-        ret = {}
-        refs = self.references
-        if reftype:
-            refs = set([ref for ref in refs if ref.reftype == "pdf"])
-        for r in sorted(refs) if sort else refs:
-            if r.reftype in ret:
-                ret[r.reftype].append(r.ref)
-            else:
-                ret[r.reftype] = [r.ref]
-        return ret
+        if self.refDict is None:
+            ret = {'annot':[],'scrape':[]}
+            refs = self.references
+            for r in sorted(refs) if sort else refs:
+                ret['annot'].append(r.ref)
+            refs = self.scraped
+            for r in sorted(refs) if sort else refs:
+                ret['scrape'].append(r.ref)
+            self.refDict=ret
+        return self.refDict
 
+    def get_references(self, reftype=None, sort=False):
+        # Fake it as cli.py depends on this
+        rd=self.get_references_as_dict(reftype,sort)
+        return rd['annot']+rd['scrape']
 
 class PDFMinerBackend(ReaderBackend):
+    """Hacked by HST on 2019-02-18 to separate scraped from annotated refs"""
     def __init__(self, pdf_stream, password='', pagenos=[], maxpages=0):
         ReaderBackend.__init__(self)
         self.pdf_stream = pdf_stream
 
         # Extract Metadata
         parser = PDFParser(pdf_stream)
-        doc = PDFDocument(parser, password=password, caching=True)
+        self.doc = doc = PDFDocument(parser, password=password, caching=True)
         if doc.info:
             for k in doc.info[0]:
                 v = doc.info[0][k]
@@ -175,17 +185,17 @@ class PDFMinerBackend(ReaderBackend):
                     self.metadata[k] = make_compat_str(v.name)
 
         # Secret Metadata
-        if 'Metadata' in doc.catalog:
-            metadata = resolve1(doc.catalog['Metadata']).get_data()
-            # print(metadata)  # The raw XMP metadata
-            # print(xmp_to_dict(metadata))
-            self.metadata.update(xmp_to_dict(metadata))
-            # print("---")
+#         if 'Metadata' in doc.catalog:
+#             metadata = resolve1(doc.catalog['Metadata']).get_data()
+#             # print(metadata)  # The raw XMP metadata
+#             # print(xmp_to_dict(metadata))
+#             self.metadata.update(xmp_to_dict(metadata))
+#             # print("---")
 
         # Extract Content
-        text_io = BytesIO()
+        text_io = TextIOWrapper(BytesIO())
         rsrcmgr = PDFResourceManager(caching=True)
-        converter = TextConverter(rsrcmgr, text_io, codec="utf-8",
+        converter = TextConverter(rsrcmgr, text_io,
                                   laparams=LAParams(), imagewriter=None)
         interpreter = PDFPageInterpreter(rsrcmgr, converter)
 
@@ -200,80 +210,72 @@ class PDFMinerBackend(ReaderBackend):
             self.curpage += 1
 
             # Collect URL annotations
-            # try:
-            if page.annots:
-                refs = self.resolve_PDFObjRef(page.annots)
-                if refs:
-                    if isinstance(refs, list):
-                        for ref in refs:
-                            if ref:
-                                self.references.add(ref)
-                    elif isinstance(refs, Reference):
-                        self.references.add(refs)
-
-            # except Exception as e:
-                # logger.warning(str(e))
+            try:
+                if page.annots:
+                    refs = self.resolve_PDFObjRef(page.annots,False)
+                    if refs:
+                        if isinstance(refs, list):
+                            for ref in refs:
+                                if ref:
+                                    self.references.add(ref)
+                        elif isinstance(refs, Reference):
+                            self.references.add(refs)
+            except Exception as e:
+                logger.warning(str(e))
+                raise
 
         # Remove empty metadata entries
         self.metadata_cleanup()
 
         # Get text from stream
-        self.text = text_io.getvalue().decode("utf-8")
+        self.text = text_io.buffer.getvalue().decode("utf-8")
         text_io.close()
         converter.close()
         # print(self.text)
 
         # Extract URL references from text
         for url in extractor.extract_urls(self.text):
-            self.references.add(Reference(url, self.curpage))
+            self.scraped.add(Reference(url, self.curpage))
 
-        for ref in extractor.extract_arxiv(self.text):
-            self.references.add(Reference(ref, self.curpage))
+        #for ref in extractor.extract_arxiv(self.text):
+        #    self.references.add(Reference(ref, self.curpage))
 
         for ref in extractor.extract_doi(self.text):
-            self.references.add(Reference(ref, self.curpage))
+            self.scraped.add(Reference('doi:'+ref, self.curpage))
 
-    def resolve_PDFObjRef(self, obj_ref):
+    def resolve_PDFObjRef(self, obj_ref, internal):
         """
         Resolves PDFObjRef objects. Returns either None, a Reference object or
         a list of Reference objects.
         """
         if isinstance(obj_ref, list):
-            return [self.resolve_PDFObjRef(item) for item in obj_ref]
+            return [self.resolve_PDFObjRef(item,True) for item in obj_ref]
 
-        # print(">", obj_ref, type(obj_ref))
-        if not isinstance(obj_ref, PDFObjRef):
-            # print("type not of PDFObjRef")
+        if isinstance(obj_ref, PDFObjRef):
+            obj_resolved = obj_ref.resolve()
+        elif internal:
+            obj_resolved = obj_ref
+        else:
+            logger.warning("top-level type not of PDFObjRef: %s"%type(obj_ref))
             return None
 
-        obj_resolved = obj_ref.resolve()
-        # print("obj_resolved:", obj_resolved, type(obj_resolved))
         if isinstance(obj_resolved, bytes):
-            obj_resolved = obj_resolved.decode("utf-8")
+            try:
+                obj_resolved = obj_resolved.decode("utf-8")
+            except UnicodeDecodeError:
+                obj_resolved = obj_resolved.decode("iso-8859-1")
 
         if isinstance(obj_resolved, (str, unicode)):
-            if IS_PY2:
-                ref = obj_resolved.decode("utf-8")
-            else:
-                ref = obj_resolved
-            return Reference(ref, self.curpage)
+            return Reference(obj_resolved, self.curpage)
 
         if isinstance(obj_resolved, list):
-            return [self.resolve_PDFObjRef(o) for o in obj_resolved]
+            return [self.resolve_PDFObjRef(o,True) for o in obj_resolved]
 
         if "URI" in obj_resolved:
-            if isinstance(obj_resolved["URI"], PDFObjRef):
-                return self.resolve_PDFObjRef(obj_resolved["URI"])
+            return self.resolve_PDFObjRef(obj_resolved["URI"],True)
 
         if "A" in obj_resolved:
-            if isinstance(obj_resolved["A"], PDFObjRef):
-                return self.resolve_PDFObjRef(obj_resolved["A"])
-
-            if "URI" in obj_resolved["A"]:
-                # print("->", a["A"]["URI"])
-                return Reference(obj_resolved["A"]["URI"].decode("utf-8"),
-                                 self.curpage)
-
+            return self.resolve_PDFObjRef(obj_resolved["A"],True)
 
 class TextBackend(ReaderBackend):
     def __init__(self, stream):
