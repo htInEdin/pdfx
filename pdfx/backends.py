@@ -3,8 +3,7 @@
 PDF Backend: pdfMiner
 """
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
 import logging
@@ -19,19 +18,17 @@ from .libs.xmp import xmp_to_dict
 
 # Setting `psparser.STRICT` is the first thing to do because it is
 # referenced in the other pdfparser modules
-try:
-    from pdfminer import settings as pdfminer_settings
-    pdfminer_settings.STRICT = False
-except:
-    pass
-from pdfminer import psparser
-from pdfminer.pdfdocument import PDFDocument
-from pdfminer.pdfparser import PDFParser
-from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
-from pdfminer.pdfpage import PDFPage
-from pdfminer.pdftypes import resolve1, resolve_all, PDFObjRef
-from pdfminer.converter import TextConverter
-from pdfminer.layout import LAParams
+from pdfminer import settings as pdfminer_settings
+
+pdfminer_settings.STRICT = False
+from pdfminer import psparser  # noqa: E402
+from pdfminer.pdfdocument import PDFDocument  # noqa: E402
+from pdfminer.pdfparser import PDFParser  # noqa: E402
+from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter  # noqa: E402
+from pdfminer.pdfpage import PDFPage  # noqa: E402
+from pdfminer.pdftypes import resolve1, PDFObjRef  # noqa: E402
+from pdfminer.converter import TextConverter  # noqa: E402
+from pdfminer.layout import LAParams  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -68,18 +65,19 @@ def make_compat_str(in_str):
     enc = chardet.detect(in_str)
 
     # Decode the object into a unicode object
-    out_str = in_str.decode(enc['encoding'])
+    out_str = in_str.decode(enc["encoding"])
 
     # Cleanup
-    if enc['encoding'] == "UTF-16BE":
+    if enc["encoding"] == "UTF-16BE":
         # Remove byte order marks (BOM)
-        if out_str.startswith('\ufeff'):
+        if out_str.startswith("\ufeff"):
             out_str = out_str[1:]
     return out_str
 
 
 class Reference(object):
     """ Generic Reference """
+
     ref = ""
     reftype = "url"
     page = 0
@@ -88,24 +86,8 @@ class Reference(object):
         self.ref = uri
         self.reftype = "url"
         self.page = page
-        return
-        # Detect reftype by filetype
-        if uri.lower().endswith(".pdf"):
-            self.reftype = "pdf"
-            return
-
-        # Detect reftype by extractor
-        arxiv = extractor.extract_arxiv(uri)
-        if arxiv:
-            self.ref = arxiv.pop()
-            self.reftype = "arxiv"
-            return
-
-        doi = extractor.extract_doi(uri)
-        if doi:
-            self.ref = doi.pop()
-            self.reftype = "doi"
-            return
+        # reftype now always 'url' for backwards compat, old
+        #  attempt to diagnose by filetype/regexp was at best misleading
 
     def __hash__(self):
         return hash(self.ref)
@@ -124,8 +106,9 @@ class ReaderBackend(object):
 
     The job of a Reader is to extract Text and Links.
 
-    Hacked by HST on 2019-02-18 to separate scraped from annotated refs
+    HST modified on 2019-02-18 to separate scraped from annotated refs
     """
+
     text = ""
     metadata = {}
     references = set()
@@ -140,11 +123,31 @@ class ReaderBackend(object):
     def get_metadata(self):
         return self.metadata
 
+    def metadata_key_cleanup(self, d, k):
+        """ Recursively clean metadata dictionaries """
+        if isinstance(d[k], (str, unicode)):
+            d[k] = d[k].strip()
+            if not d[k]:
+                del d[k]
+        elif isinstance(d[k], (list, tuple)):
+            new_list = []
+            for item in d[k]:
+                if isinstance(item, (str, unicode)):
+                    if item.strip():
+                        new_list.append(item.strip())
+                elif item:
+                    new_list.append(item)
+            d[k] = new_list
+            if len(d[k]) == 0:
+                del d[k]
+        elif isinstance(d[k], dict):
+            for k2 in list(d[k].keys()):
+                self.metadata_key_cleanup(d[k], k2)
+
     def metadata_cleanup(self):
-        """ Delete all metadata fields without values """
+        """ Clean metadata (delete all metadata fields without values) """
         for k in list(self.metadata.keys()):
-            if self.metadata[k] == "":
-                del self.metadata[k]
+            self.metadata_key_cleanup(self.metadata, k)
 
     def get_text(self):
         return self.text
@@ -167,8 +170,9 @@ class ReaderBackend(object):
         return rd['annot']+rd['scrape']
 
 class PDFMinerBackend(ReaderBackend):
-    """Hacked by HST on 2019-02-18 to separate scraped from annotated refs"""
-    def __init__(self, pdf_stream, password='', pagenos=[], maxpages=0):
+    """HST modified on 2019-02-18 to separate scraped from annotated refs and
+    improve coverage"""
+    def __init__(self, pdf_stream, password="", pagenos=[], maxpages=0):  # noqa: C901
         ReaderBackend.__init__(self)
         self.pdf_stream = pdf_stream
 
@@ -185,12 +189,12 @@ class PDFMinerBackend(ReaderBackend):
                     self.metadata[k] = make_compat_str(v.name)
 
         # Secret Metadata
-#         if 'Metadata' in doc.catalog:
-#             metadata = resolve1(doc.catalog['Metadata']).get_data()
-#             # print(metadata)  # The raw XMP metadata
-#             # print(xmp_to_dict(metadata))
-#             self.metadata.update(xmp_to_dict(metadata))
-#             # print("---")
+        if "Metadata" in doc.catalog:
+            metadata = resolve1(doc.catalog["Metadata"]).get_data()
+            # print(metadata)  # The raw XMP metadata
+            # print(xmp_to_dict(metadata))
+            self.metadata.update(xmp_to_dict(metadata))
+            # print("---")
 
         # Extract Content
         text_io = TextIOWrapper(BytesIO())
@@ -201,9 +205,14 @@ class PDFMinerBackend(ReaderBackend):
 
         self.metadata["Pages"] = 0
         self.curpage = 0
-        for page in PDFPage.get_pages(self.pdf_stream, pagenos=pagenos,
-                                      maxpages=maxpages, password=password,
-                                      caching=True, check_extractable=False):
+        for page in PDFPage.get_pages(
+            self.pdf_stream,
+            pagenos=pagenos,
+            maxpages=maxpages,
+            password=password,
+            caching=True,
+            check_extractable=False,
+        ):
             # Read page contents
             interpreter.process_page(page)
             self.metadata["Pages"] += 1
