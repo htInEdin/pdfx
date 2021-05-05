@@ -1,18 +1,13 @@
 2021-05-03  Henry S. Thompson  <ht@home.hst.name>
 
-	* backends.py: Protect from version pblm with pdfminer STRICT
-		       Restructure references to distinguish scraped
+	* backends.py: Restructure references to distinguish scraped
 		       	vs. from annotations, abandoning old reftype as incoherent
 		      PDFMinerBackend:
 		       Wrap TextConverter output ByteIO with TextIOWrapper
 		       Expose doc as property to aid debugging
 		       Template for debug logging
-		       No more Metadata
-		       Log exceptions and re-raise
+		       Log exceptions in ref scraping and re-raise
 		       Remove separate support for arxiv URIs
 		       Refactor resolve_PDFObjRef to clarify logic and
 		       	handle more cases
 		       Fall back to iso-8859-1 if UTF-8 doesn't work
-	
-	* downloader.py: Be more careful importing ssl
-
