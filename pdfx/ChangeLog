@@ -1,12 +1,17 @@
+2021-05-18  Henry S. Thompson  <ht@home.hst.name>
+
+	* extractor.py: Compile all regexes and use the compiled versions
+	 	        to extract with
+
 2021-05-03  Henry S. Thompson  <ht@home.hst.name>
 
 	* backends.py: Restructure references to distinguish scraped
-		       	vs. from annotations, abandoning old reftype as incoherent
+		       	vs. found in annotations, abandoning old reftype as incoherent
 		      PDFMinerBackend:
 		       Wrap TextConverter output ByteIO with TextIOWrapper
 		       Expose doc as property to aid debugging
 		       Template for debug logging
-		       Log exceptions in ref scraping and re-raise
+		       Log exceptions during ref scraping and re-raise
 		       Remove separate support for arxiv URIs
 		       Refactor resolve_PDFObjRef to clarify logic and
 		       	handle more cases
