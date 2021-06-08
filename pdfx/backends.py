@@ -171,7 +171,7 @@ class ReaderBackend(object):
     def get_references(self, reftype=None, sort=False):
         # Fake it as cli.py depends on this
         rd = self.get_references_as_dict(reftype, sort)
-        return rd['annot']+rd['scrape']
+        return rd.get('annot', [])+rd.get('scrape', [])
 
 
 class PDFMinerBackend(ReaderBackend):
