@@ -30,13 +30,10 @@ from pdfminer.pdftypes import resolve1, PDFObjRef  # noqa: E402
 from pdfminer.converter import TextConverter  # noqa: E402
 from pdfminer.layout import LAParams  # noqa: E402
 
-
 logger = logging.getLogger(__name__)
-#logging.basicConfig(
+# logging.basicConfig(
 #        level=logging.DEBUG,
 #        format='%(levelname)s - %(module)s - %(message)s')
-
-
 
 IS_PY2 = sys.version_info < (3, 0)
 if not IS_PY2:
@@ -104,6 +101,11 @@ class Reference(object):
         return "<%s: %s>" % (self.reftype, self.ref)
 
 
+def maybe_sort(r, s):
+    # for use in get_references_as_dict
+    return sorted(r) if s else r
+
+
 class ReaderBackend(object):
     """
     Base class of all Readers (eg. for PDF files, text, etc.)
@@ -157,20 +159,20 @@ class ReaderBackend(object):
         return self.text
 
     def get_references_as_dict(self, reftype=None, sort=False):
-        maybe_sort=lambda r,s:(sorted(r) if s else r)
         if self.refDict is None:
             ret = {}
             if self.references:
-                ret['annot']=[r.ref for r in maybe_sort(self.references,sort)]
+                ret['annot'] = [r.ref for r in maybe_sort(self.references, sort)]
             if self.scraped:
-                ret['scrape']=[r.ref for r in maybe_sort(self.scraped,sort)]
-            self.refDict=ret
+                ret['scrape'] = [r.ref for r in maybe_sort(self.scraped, sort)]
+            self.refDict = ret
         return self.refDict
 
     def get_references(self, reftype=None, sort=False):
         # Fake it as cli.py depends on this
-        rd=self.get_references_as_dict(reftype,sort)
+        rd = self.get_references_as_dict(reftype, sort)
         return rd['annot']+rd['scrape']
+
 
 class PDFMinerBackend(ReaderBackend):
     """HST modified on 2019-02-18 to separate scraped from annotated refs and
@@ -224,7 +226,7 @@ class PDFMinerBackend(ReaderBackend):
             # Collect URL annotations
             try:
                 if page.annots:
-                    refs = self.resolve_PDFObjRef(page.annots,False)
+                    refs = self.resolve_PDFObjRef(page.annots, False)
                     if refs:
                         if isinstance(refs, list):
                             for ref in refs:
@@ -250,7 +252,7 @@ class PDFMinerBackend(ReaderBackend):
         for url in extractor.extract_urls(self.text):
             self.scraped.add(Reference(url, self.curpage))
 
-        #for ref in extractor.extract_arxiv(self.text):
+        # for ref in extractor.extract_arxiv(self.text):
         #    self.references.add(Reference(ref, self.curpage))
 
         for ref in extractor.extract_doi(self.text):
@@ -262,20 +264,20 @@ class PDFMinerBackend(ReaderBackend):
         a list of Reference objects.
         """
         if isinstance(obj_ref, list):
-            return [self.resolve_PDFObjRef(item,True) for item in obj_ref]
+            return [self.resolve_PDFObjRef(item, True) for item in obj_ref]
 
         if isinstance(obj_ref, PDFObjRef):
             obj_resolved = obj_ref.resolve()
         elif internal:
             obj_resolved = obj_ref
         else:
-            logger.warning("top-level type not of PDFObjRef: %s"%type(obj_ref))
+            logger.warning("top-level type not of PDFObjRef: %s" % type(obj_ref))
             return None
 
         if isinstance(obj_resolved, bytes):
-            if obj_resolved[-1]==0:
+            if obj_resolved[-1] == 0:
                 # This occurs once in 100 files or so...
-                obj_resolved=obj_resolved.rstrip(b'\x00')
+                obj_resolved = obj_resolved.rstrip(b'\x00')
             try:
                 obj_resolved = obj_resolved.decode("utf-8")
             except UnicodeDecodeError:
@@ -285,13 +287,14 @@ class PDFMinerBackend(ReaderBackend):
             return Reference(obj_resolved, self.curpage)
 
         if isinstance(obj_resolved, list):
-            return [self.resolve_PDFObjRef(o,True) for o in obj_resolved]
+            return [self.resolve_PDFObjRef(o, True) for o in obj_resolved]
 
         if "URI" in obj_resolved:
-            return self.resolve_PDFObjRef(obj_resolved["URI"],True)
+            return self.resolve_PDFObjRef(obj_resolved["URI"], True)
 
         if "A" in obj_resolved:
-            return self.resolve_PDFObjRef(obj_resolved["A"],True)
+            return self.resolve_PDFObjRef(obj_resolved["A"], True)
+
 
 class TextBackend(ReaderBackend):
     def __init__(self, stream):

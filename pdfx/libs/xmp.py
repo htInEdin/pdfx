@@ -42,8 +42,8 @@ class XmpParser(object):
     def __init__(self, xmp):
         self.tree = ET.XML(xmp)
         self.rdftree = self.tree.find(RDF_NS + "RDF")
-        if self.rdftree is None and self.tree.tag==RDF_NS + "RDF":
-            self.rdftree=self.tree
+        if self.rdftree is None and self.tree.tag == RDF_NS + "RDF":
+            self.rdftree = self.tree
 
     @property
     def meta(self):
