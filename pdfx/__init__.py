@@ -97,7 +97,7 @@ class PDFx(object):
     def __init__(self, uri):
         """
         Open PDF handle and parse PDF metadata
-        - `uri` can bei either a filename or an url
+        - `uri` can be either a filename or an url
         """
         logger.debug("Init with uri: %s" % uri)
 
@@ -150,7 +150,9 @@ class PDFx(object):
         }
 
         # Search for URLs
-        self.summary["references"] = self.reader.get_references_as_dict()
+        # HST removed this because it defeats the use of the 'sort' argument
+        #  to get_references... below!
+        # self.summary["references"] = self.reader.get_references_as_dict()
         # print(self.summary)
 
     def get_text(self):

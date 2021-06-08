@@ -42,20 +42,23 @@ class XmpParser(object):
     def __init__(self, xmp):
         self.tree = ET.XML(xmp)
         self.rdftree = self.tree.find(RDF_NS + "RDF")
+        if self.rdftree is None and self.tree.tag==RDF_NS + "RDF":
+            self.rdftree=self.tree
 
     @property
     def meta(self):
         """ A dictionary of all the parsed metadata. """
         meta = defaultdict(dict)
-        for desc in self.rdftree.findall(RDF_NS + "Description"):
-            for (
-                el
-            ) in (
-                desc.iter()
-            ):  # getchildren() is deprecated since python 2.7 and 3.2, fixed it
-                ns, tag = self._parse_tag(el)
-                value = self._parse_value(el)
-                meta[ns][tag] = value
+        if self.rdftree is not None:
+            for desc in self.rdftree.findall(RDF_NS + "Description"):
+                for (
+                    el
+                ) in (
+                    desc.iter()
+                ):  # getchildren() is deprecated since python 2.7 and 3.2, fixed it
+                    ns, tag = self._parse_tag(el)
+                    value = self._parse_value(el)
+                    meta[ns][tag] = value
         return dict(meta)
 
     def _parse_tag(self, el):

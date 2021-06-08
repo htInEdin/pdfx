@@ -1,3 +1,18 @@
+2021-06-08  Henry S. Thompson  <ht@home.hst.name>
+
+	* __init__.py (PDFx.__init__): Fix typo in comment,
+	Remove references from summary because that caches an unsorted
+        version
+
+	* backends.py (Reference.__lt__): Add __lt__ to enable sorting
+	(ReaderBackend.get_references_as_dict): Improve sorting efficiency
+	(PDFMinerBackend.resolve_PDFObjRef): Fix bug in use of TextIOWrapper
+	Remove NUL from end of links as reported in Annot
+
+	* libs/xmp.py (XmpParser.__init__): Handle shorter RDF parse tree
+	(XmpParser.meta): Don't fail, just return empty dict if no RDF
+	
+	
 2021-05-18  Henry S. Thompson  <ht@home.hst.name>
 
 	* extractor.py: Compile all regexes and use the compiled versions
@@ -5,14 +20,15 @@
 
 2021-05-03  Henry S. Thompson  <ht@home.hst.name>
 
-	* backends.py: Restructure references to distinguish scraped
-		       	vs. found in annotations, abandoning old reftype as incoherent
-		      PDFMinerBackend:
-		       Wrap TextConverter output ByteIO with TextIOWrapper
-		       Expose doc as property to aid debugging
-		       Template for debug logging
-		       Log exceptions during ref scraping and re-raise
-		       Remove separate support for arxiv URIs
-		       Refactor resolve_PDFObjRef to clarify logic and
-		       	handle more cases
-		       Fall back to iso-8859-1 if UTF-8 doesn't work
+	* backends.py: Template for debug logging
+	(Reference): Abandon old reftype as incoherent
+	(ReaderBackend, get_references, get_references_as_dict)
+	(PDFMinerBackend.resolve_PDFObjRef, PDFMinerBackend.__init__): Restructure
+	        	references to distinguish scraped vs. found in annotations
+		        Wrap TextConverter output ByteIO with TextIOWrapper
+		        Expose doc as property to aid debugging
+		        Log exceptions during ref scraping and re-raise
+		        Remove separate support for arxiv URIs
+		        Refactor resolve_PDFObjRef to clarify logic and
+		       	 handle more cases
+		        Fall back to iso-8859-1 if UTF-8 doesn't work

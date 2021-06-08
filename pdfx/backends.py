@@ -96,6 +96,10 @@ class Reference(object):
         assert isinstance(other, Reference)
         return self.ref == other.ref
 
+    def __lt__(self, other):
+        assert isinstance(other, Reference)
+        return self.ref < other.ref
+
     def __str__(self):
         return "<%s: %s>" % (self.reftype, self.ref)
 
@@ -153,14 +157,13 @@ class ReaderBackend(object):
         return self.text
 
     def get_references_as_dict(self, reftype=None, sort=False):
+        maybe_sort=lambda r,s:(sorted(r) if s else r)
         if self.refDict is None:
-            ret = {'annot':[],'scrape':[]}
-            refs = self.references
-            for r in sorted(refs) if sort else refs:
-                ret['annot'].append(r.ref)
-            refs = self.scraped
-            for r in sorted(refs) if sort else refs:
-                ret['scrape'].append(r.ref)
+            ret = {}
+            if self.references:
+                ret['annot']=[r.ref for r in maybe_sort(self.references,sort)]
+            if self.scraped:
+                ret['scrape']=[r.ref for r in maybe_sort(self.scraped,sort)]
             self.refDict=ret
         return self.refDict
 
@@ -237,7 +240,8 @@ class PDFMinerBackend(ReaderBackend):
         self.metadata_cleanup()
 
         # Get text from stream
-        self.text = text_io.buffer.getvalue().decode("utf-8")
+        text_io.seek(0)
+        self.text = text_io.read()
         text_io.close()
         converter.close()
         # print(self.text)
@@ -269,6 +273,9 @@ class PDFMinerBackend(ReaderBackend):
             return None
 
         if isinstance(obj_resolved, bytes):
+            if obj_resolved[-1]==0:
+                # This occurs once in 100 files or so...
+                obj_resolved=obj_resolved.rstrip(b'\x00')
             try:
                 obj_resolved = obj_resolved.decode("utf-8")
             except UnicodeDecodeError:
