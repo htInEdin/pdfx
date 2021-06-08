@@ -18,8 +18,9 @@ def test_all():
         pdfx.PDFx(os.path.join(curdir, "pdfs/invalid.pdf"))
 
     pdf = pdfx.PDFx(os.path.join(curdir, "pdfs/valid.pdf"))
-    urls = pdf.get_references(reftype="pdf")
-    assert len(urls) == 18
+    urls = pdf.get_references_as_dict()
+    assert len(urls['annot']) == 28
+    assert len(urls['scrape']) == 31
     # pdf.download_pdfs("/tmp/")
 
 
