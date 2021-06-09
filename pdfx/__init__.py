@@ -150,9 +150,7 @@ class PDFx(object):
         }
 
         # Search for URLs
-        # HST removed this because it defeats the use of the 'sort' argument
-        #  to get_references... below!
-        # self.summary["references"] = self.reader.get_references_as_dict()
+        self.summary["references"] = self.reader.get_references()
         # print(self.summary)
 
     def get_text(self):
@@ -162,11 +160,11 @@ class PDFx(object):
         return self.reader.get_metadata()
 
     def get_references(self, reftype=None, sort=False):
-        """ reftype can be `None` for all, `pdf`, etc. """
+        """ reftype deprecated, see defn in backends """
         return self.reader.get_references(reftype=reftype, sort=sort)
 
     def get_references_as_dict(self, reftype=None, sort=False):
-        """ reftype can be `None` for all, `pdf`, etc. """
+        """ reftype deprecated, see defn in backends """
         return self.reader.get_references_as_dict(reftype=reftype, sort=sort)
 
     def get_references_count(self, reftype=None):

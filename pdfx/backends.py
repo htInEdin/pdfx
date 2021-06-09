@@ -7,6 +7,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import sys
 import logging
+import warnings
 from io import BytesIO, TextIOWrapper
 
 # Character Detection Helper
@@ -76,15 +77,32 @@ class Reference(object):
     """ Generic Reference """
 
     ref = ""
-    reftype = "url"
     page = 0
+    # reftype is now deprecated.
+    # It is always set to 'url' (for backwards compatability in case
+    # anyone references it), but the old attempt to diagnose by filetype/regexp
+    # was at best misleading and at worst just plain wrong
+    _reftype = 'url'
+
+    @property
+    def reftype(self):
+        warnings.warn("""Getting the reftype of a Reference is deprecated.
+        All References are now created with a reftype of 'url'.""",
+                      DeprecationWarning,
+                      stacklevel=2)
+        return self._reftype
+
+    @reftype.setter
+    def reftype(self, value):
+        self._reftype = value
+        warnings.warn("""Setting the reftype of a Reference is deprecated,
+        no pdfx functionality pays attention to it any more.""",
+                      DeprecationWarning,
+                      stacklevel=2)
 
     def __init__(self, uri, page=0):
         self.ref = uri
-        self.reftype = "url"
         self.page = page
-        # reftype now always 'url' for backwards compat, old
-        #  attempt to diagnose by filetype/regexp was at best misleading
 
     def __hash__(self):
         return hash(self.ref)
@@ -124,7 +142,8 @@ class ReaderBackend(object):
         self.metadata = {}
         self.references = set()
         self.scraped = set()
-        self.refDict = None
+        self.refDicts = {True: None, False: None}
+        self.refLists = {True: None, False: None}
 
     def get_metadata(self):
         return self.metadata
@@ -159,19 +178,32 @@ class ReaderBackend(object):
         return self.text
 
     def get_references_as_dict(self, reftype=None, sort=False):
-        if self.refDict is None:
+        if reftype is not None:
+            warnings.warn("""The reftype argument is deprecated.
+            All refs now have a reftype of url so it serves no purpose.""",
+                          DeprecationWarning,
+                          stacklevel=2)
+        if self.refDicts[sort] is None:
             ret = {}
             if self.references:
                 ret['annot'] = [r.ref for r in maybe_sort(self.references, sort)]
             if self.scraped:
                 ret['scrape'] = [r.ref for r in maybe_sort(self.scraped, sort)]
-            self.refDict = ret
-        return self.refDict
+            self.refDicts[sort] = ret
+        return self.refDicts[sort]
 
     def get_references(self, reftype=None, sort=False):
         # Fake it as cli.py depends on this
-        rd = self.get_references_as_dict(reftype, sort)
-        return rd.get('annot', []) + rd.get('scrape', [])
+        if reftype is not None:
+            warnings.warn("""The reftype argument is deprecated.
+            All refs now have a reftype of url so it serves no purpose.""",
+                          DeprecationWarning,
+                          stacklevel=2)
+        if self.refLists[sort] is None:
+            self.refLists[sort] = [r.ref for r in
+                                   maybe_sort(self.references.union(self.scraped),
+                                              sort)]
+        return self.refLists[sort]
 
 
 class PDFMinerBackend(ReaderBackend):
