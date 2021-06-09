@@ -21,6 +21,7 @@ def test_all():
     urls = pdf.get_references_as_dict()
     assert len(urls['annot']) == 28
     assert len(urls['scrape']) == 31
+    assert len(pdf.get_references()) == 37
     # pdf.download_pdfs("/tmp/")
 
 
