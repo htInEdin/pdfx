@@ -51,6 +51,8 @@ from .downloader import download_urls
 from .exceptions import FileNotFoundError, DownloadError, PDFInvalidError
 from pdfminer.pdfparser import PDFSyntaxError
 
+import stopit
+logging.getLogger('stopit').setLevel(logging.ERROR)
 
 IS_PY2 = sys.version_info < (3, 0)
 
@@ -108,8 +110,9 @@ class PDFx(object):
     summary = {}
 
     def buildStream(self):
-        # Grab content of reference
         logger.debug("<buildStream")
+
+        # Grab content of reference
         uri = self.uri
         if self.is_url:
             logger.debug("Reading url '%s'..." % uri)
@@ -117,7 +120,7 @@ class PDFx(object):
             try:
                 content = urlopen(Request(uri)).read()
                 self.stream = BytesIO(content)
-            except TimeoutException:
+            except stopit.TimeoutException:
                 logger.debug("buildStream timeout")
                 raise
             except Exception as e:
@@ -134,7 +137,6 @@ class PDFx(object):
 
 
     def __init__(self, uri, readTimeout=None, textTimeout=None, limit=True):
-        global TimeoutException
         """
         Open PDF handle and parse PDF metadata
         - `uri` can be either a filename or an url
@@ -156,10 +158,6 @@ class PDFx(object):
         url = extract_urls(uri)
         self.is_url = len(url)
 
-        if (readTimeout is not None) or (textTimeout is not None):
-            import stopit
-            TimeoutException=stopit.TimeoutException
-            #logging.getLogger('stopit').setLevel(logging.ERROR)
         if readTimeout is None:
             self.buildStream()
         else:
