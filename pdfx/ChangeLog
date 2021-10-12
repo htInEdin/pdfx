@@ -1,0 +1,15 @@
+2021-10-06  Henry S. Thompson  <ht@home.hst.name>
+
+	* __init__.py (PDFx.__init__): Add readTimeout, textTimeout and limit args
+        readTimeout if present is a timeout after which we give
+         up trying to read and raise PDFReadTimeout
+        textTimeout if present is a timeout post-reading after which
+          if limit we try again w/o LAParams (i.e we don't process and
+                                              layout the text),
+          otherwise we raise PDFTextTimeout
+        textTimeout with limit makes sense if you only care about annotations,
+          e.g. if you're looking for URI references
+	
+        * __init__.py (PDFx.buildStream): factored out of __init__ to facilitate the above 
+	
+

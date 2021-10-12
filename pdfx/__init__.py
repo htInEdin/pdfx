@@ -67,6 +67,19 @@ else:
 
 logger = logging.getLogger(__name__)
 
+class PDFTimeout(Exception):
+    """Raised for any timeout while attempting to build a PDFx instance"""
+    pass
+
+class PDFReadTimeout(PDFTimeout):
+    """Raised if reading the complete input for PDFx construction times out"""
+    pass
+
+class PDFTextTimeout(PDFTimeout):
+    """Raised if extracting the text content for PDFx construction times out.
+    Annotation data may have been constructed."""
+    pass
+
 
 class PDFx(object):
     """
@@ -94,38 +107,91 @@ class PDFx(object):
     reader = None  # ReaderBackend
     summary = {}
 
-    def __init__(self, uri):
-        """
-        Open PDF handle and parse PDF metadata
-        - `uri` can bei either a filename or an url
-        """
-        logger.debug("Init with uri: %s" % uri)
-
-        self.uri = uri
-
-        # Find out whether pdf is an URL or local file
-        url = extract_urls(uri)
-        self.is_url = len(url)
-
+    def buildStream(self):
         # Grab content of reference
+        logger.debug("<buildStream")
+        uri = self.uri
         if self.is_url:
             logger.debug("Reading url '%s'..." % uri)
             self.fn = uri.split("/")[-1]
             try:
                 content = urlopen(Request(uri)).read()
                 self.stream = BytesIO(content)
+            except TimeoutException:
+                logger.debug("buildStream timeout")
+                raise
             except Exception as e:
+                logger.debug("buildStream download error")
                 raise DownloadError("Error downloading '%s' (%s)" % (uri, unicode(e)))
 
         else:
             if not os.path.isfile(uri):
+                logger.debug("buildStream bad filename error")
                 raise FileNotFoundError("Invalid filename and not an url: '%s'" % uri)
             self.fn = os.path.basename(uri)
             self.stream = open(uri, "rb")
+        logger.debug("buildStream/>")
+
+
+    def __init__(self, uri, readTimeout=None, textTimeout=None, limit=True):
+        global TimeoutException
+        """
+        Open PDF handle and parse PDF metadata
+        - `uri` can be either a filename or an url
+        readTimeout if present is a timeout after which we give
+         up trying to read and raise PDFReadTimeout
+        textTimeout if present is a timeout post-reading after which
+          if limit we try again w/o LAParams (i.e we don't process and
+                                              layout the text),
+          otherwise we raise PDFTextTimeout
+        textTimeout with limit makes sense if you only care about annotations,
+          e.g. if you're looking for URI references
+        """
+        logger.debug("Init with uri: %s" % uri)
+
+        self.uri = uri
+        self.limited=False
+
+        # Find out whether pdf is an URL or local file
+        url = extract_urls(uri)
+        self.is_url = len(url)
+
+        if (readTimeout is not None) or (textTimeout is not None):
+            import stopit
+            TimeoutException=stopit.TimeoutException
+            #logging.getLogger('stopit').setLevel(logging.ERROR)
+        if readTimeout is None:
+            self.buildStream()
+        else:
+            if readTimeout <= 0:
+                # Only makes sense for testing, but triggers bug in stopit
+                # (see https://github.com/glenfant/stopit/issues/26)
+                # so we fake it here
+                cc = False
+            else:
+                with stopit.ThreadingTimeout(readTimeout) as cc:
+                    self.buildStream()
+            if not(cc):
+                raise PDFReadTimeout
 
         # Create ReaderBackend instance
         try:
-            self.reader = PDFMinerBackend(self.stream)
+            if textTimeout is None:
+                self.reader = PDFMinerBackend(self.stream)
+            else:
+                if textTimeout <= 0:
+                    # see comment above
+                    cc = False
+                else:
+                    with stopit.ThreadingTimeout(textTimeout) as cc:
+                        self.reader = PDFMinerBackend(self.stream)
+                if not(cc):
+                    if limit is None:
+                        raise PDFTextTimeout
+                    else:
+                        self.limited=True
+                        self.reader=PDFMinerBackend(self.stream,
+                                                    lap=None,annot_only=True)
         except PDFSyntaxError as e:
             raise PDFInvalidError("Invalid PDF (%s)" % unicode(e))
 
@@ -144,7 +210,7 @@ class PDFx(object):
             "source": {
                 "type": "url" if self.is_url else "file",
                 "location": self.uri,
-                "filename": self.fn,
+                "filename": self.fn
             },
             "metadata": self.reader.get_metadata(),
         }

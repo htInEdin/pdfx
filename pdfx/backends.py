@@ -126,10 +126,11 @@ class ReaderBackend(object):
     metadata = {}
     references = set()
 
-    def __init__(self):
+    def __init__(self,annot_only):
         self.text = ""
         self.metadata = {}
         self.references = set()
+        self.limited=annot_only
 
     def get_metadata(self):
         return self.metadata
@@ -183,8 +184,8 @@ class ReaderBackend(object):
 
 
 class PDFMinerBackend(ReaderBackend):
-    def __init__(self, pdf_stream, password="", pagenos=[], maxpages=0):  # noqa: C901
-        ReaderBackend.__init__(self)
+    def __init__(self, pdf_stream, password='', pagenos=[], maxpages=0,lap=LAParams(),annot_only=False):
+        ReaderBackend.__init__(self,annot_only)
         self.pdf_stream = pdf_stream
 
         # Extract Metadata
@@ -211,7 +212,7 @@ class PDFMinerBackend(ReaderBackend):
         text_io = BytesIO()
         rsrcmgr = PDFResourceManager(caching=True)
         converter = TextConverter(
-            rsrcmgr, text_io, codec="utf-8", laparams=LAParams(), imagewriter=None
+            rsrcmgr, text_io, codec="utf-8", laparams=lap, imagewriter=None
         )
         interpreter = PDFPageInterpreter(rsrcmgr, converter)
 
@@ -247,6 +248,11 @@ class PDFMinerBackend(ReaderBackend):
 
         # Remove empty metadata entries
         self.metadata_cleanup()
+
+        # If limited (timeout on text layout exceeded) then text_io is bogus
+        if self.limited:
+            self.text="[Timeout laying out text, not available]"
+            return
 
         # Get text from stream
         self.text = text_io.getvalue().decode("utf-8")

@@ -1,0 +1,4 @@
+2021-10-06  Henry S. Thompson  <ht@home.hst.name>
+
+	* requirements.txt: Add stopit, used for allowing PDFx to timeout
+
