@@ -68,7 +68,7 @@ class XmpParser(object):
                 ns = NS_MAP[ns]
         return ns, tag
 
-    def _parse_value(self, el):  # noqa: C901
+    def _parse_value(self, el):
         """ Extract the metadata value from an element. """
         if el.find(RDF_NS + "Bag") is not None:
             value = []

@@ -17,20 +17,20 @@ import chardet
 from . import extractor
 from .libs.xmp import xmp_to_dict
 
+from pdfminer import psparser
+from pdfminer.pdfdocument import PDFDocument
+from pdfminer.pdfparser import PDFParser
+from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+from pdfminer.pdfpage import PDFPage
+from pdfminer.pdftypes import resolve1, PDFObjRef
+from pdfminer.converter import TextConverter
+from pdfminer.layout import LAParams
+
 # Setting `psparser.STRICT` is the first thing to do because it is
 # referenced in the other pdfparser modules
 from pdfminer import settings as pdfminer_settings
 
 pdfminer_settings.STRICT = False
-from pdfminer import psparser  # noqa: E402
-from pdfminer.pdfdocument import PDFDocument  # noqa: E402
-from pdfminer.pdfparser import PDFParser  # noqa: E402
-from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter  # noqa: E402
-from pdfminer.pdfpage import PDFPage  # noqa: E402
-from pdfminer.pdftypes import resolve1, PDFObjRef  # noqa: E402
-from pdfminer.converter import TextConverter  # noqa: E402
-from pdfminer.layout import LAParams  # noqa: E402
-
 
 logger = logging.getLogger(__name__)
 
@@ -126,11 +126,11 @@ class ReaderBackend(object):
     metadata = {}
     references = set()
 
-    def __init__(self,annot_only):
+    def __init__(self, annot_only):
         self.text = ""
         self.metadata = {}
         self.references = set()
-        self.limited=annot_only
+        self.limited = annot_only
 
     def get_metadata(self):
         return self.metadata
@@ -184,8 +184,9 @@ class ReaderBackend(object):
 
 
 class PDFMinerBackend(ReaderBackend):
-    def __init__(self, pdf_stream, password='', pagenos=[], maxpages=0,lap=LAParams(),annot_only=False):
-        ReaderBackend.__init__(self,annot_only)
+    def __init__(self, pdf_stream, password='', pagenos=[],  # noqa: C901
+                 maxpages=0, lap=LAParams(), annot_only=False):
+        ReaderBackend.__init__(self, annot_only)
         self.pdf_stream = pdf_stream
 
         # Extract Metadata
@@ -251,7 +252,7 @@ class PDFMinerBackend(ReaderBackend):
 
         # If limited (timeout on text layout exceeded) then text_io is bogus
         if self.limited:
-            self.text="[Timeout laying out text, not available]"
+            self.text = "[Timeout laying out text, not available]"
             return
 
         # Get text from stream

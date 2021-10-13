@@ -69,13 +69,16 @@ else:
 
 logger = logging.getLogger(__name__)
 
+
 class PDFTimeout(Exception):
     """Raised for any timeout while attempting to build a PDFx instance"""
     pass
 
+
 class PDFReadTimeout(PDFTimeout):
     """Raised if reading the complete input for PDFx construction times out"""
     pass
+
 
 class PDFTextTimeout(PDFTimeout):
     """Raised if extracting the text content for PDFx construction times out.
@@ -135,8 +138,8 @@ class PDFx(object):
             self.stream = open(uri, "rb")
         logger.debug("buildStream/>")
 
-
-    def __init__(self, uri, readTimeout=None, textTimeout=None, limit=True):
+    def __init__(self, uri, readTimeout=None,
+                 textTimeout=None, limit=True):  # noqa: C901
         """
         Open PDF handle and parse PDF metadata
         - `uri` can be either a filename or an url
@@ -152,7 +155,7 @@ class PDFx(object):
         logger.debug("Init with uri: %s" % uri)
 
         self.uri = uri
-        self.limited=False
+        self.limited = False
 
         # Find out whether pdf is an URL or local file
         url = extract_urls(uri)
@@ -187,9 +190,9 @@ class PDFx(object):
                     if limit is None:
                         raise PDFTextTimeout
                     else:
-                        self.limited=True
-                        self.reader=PDFMinerBackend(self.stream,
-                                                    lap=None,annot_only=True)
+                        self.limited = True
+                        self.reader = PDFMinerBackend(self.stream,
+                                                      lap=None, annot_only=True)
         except PDFSyntaxError as e:
             raise PDFInvalidError("Invalid PDF (%s)" % unicode(e))
 
